@@ -31,7 +31,7 @@
             background-color: var(--bg-color);
             color: var(--text-main);
             display: grid;
-            grid-template-columns: 280px 1fr;
+            grid-template-columns: 490px 1fr;
             grid-template-rows: 80px 1fr;
             height: 100vh;
             overflow: hidden;
@@ -224,10 +224,16 @@
 
         tbody tr {
             transition: background 0.15s;
+            cursor: pointer;
         }
 
         tbody tr:hover {
             background: var(--row-hover);
+        }
+
+        tbody tr:active {
+            background: var(--accent);
+            color: white;
         }
 
         .val-inflation {
@@ -296,7 +302,7 @@
         </div>
 
         <div style="margin-top: 2rem;">
-            <h2>Championship Tracker</h2>
+            <h2>Power Rankings</h2>
             <div style="margin-bottom: 1rem;">
                 <select id="tracker-team" aria-label="Tracker Team" title="Tracker Team" onchange="renderChampionshipTracker()" style="width: 100%; background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border); padding: 0.5rem; border-radius: 6px;">
                     <option value="Hot Balls" selected>Hot Balls</option>
@@ -366,7 +372,9 @@
             <button class="btn-draft" onclick="draftPlayer()">DRAFT</button>
         </div>
         <div class="input-group">
-            <input type="text" id="undo-player" list="player-list" placeholder="Undo Player Name..." style="width: 200px;">
+            <select id="undo-player" aria-label="Undo Player" title="Undo Player" style="width: 200px;">
+                <option value="" disabled selected>Select pick to undo...</option>
+            </select>
             <button class="btn-undo" onclick="undoPlayer()">UNDO</button>
         </div>
     </div>
@@ -451,6 +459,17 @@
                     });
                 }
 
+                const undoSelect = document.getElementById('undo-player');
+                undoSelect.innerHTML = '<option value="" disabled selected>Select pick to undo...</option>';
+                if (data.live_picks) {
+                    data.live_picks.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p;
+                        opt.innerText = p;
+                        undoSelect.appendChild(opt);
+                    });
+                }
+
                 updateSidebar(data.context, data.hot_balls_roster);
                 renderChampionshipTracker();
                 updateAutocomplete();
@@ -468,12 +487,44 @@
             document.getElementById('hb-spots-left').innerText = Math.max(0, 23 - hb.roster_size);
             document.getElementById('league-inflation').innerText = `${context.inflation_multiplier.toFixed(2)}x`;
 
+            const batterSlots = ['C', 'C', '1B', '2B', 'SS', '3B', 'MI', 'CI', 'U', 'OF', 'OF', 'OF', 'OF', 'OF'];
+            const pitcherSlots = Array(9).fill('P');
+            const allSlots = [...batterSlots, ...pitcherSlots];
+            
+            let availablePlayers = [...hbRoster];
+            const positionMap = [];
+            
+            allSlots.forEach(slot => {
+                let foundIdx = availablePlayers.findIndex(p => {
+                    const positions = p.POS ? p.POS.split(',').map(s => s.trim().toUpperCase()) : [];
+                    if (slot === 'P') return p.Type === 'P';
+                    if (slot === 'U') return p.Type === 'B';
+                    if (slot === 'MI') return positions.includes('2B') || positions.includes('SS');
+                    if (slot === 'CI') return positions.includes('1B') || positions.includes('3B');
+                    return positions.includes(slot);
+                });
+                
+                if (foundIdx !== -1) {
+                    positionMap.push({ slot, player: availablePlayers.splice(foundIdx, 1)[0] });
+                } else {
+                    positionMap.push({ slot, player: null });
+                }
+            });
+            
+            availablePlayers.forEach(p => {
+                positionMap.push({ slot: 'Bench', player: p });
+            });
+
             const rosterEl = document.getElementById('hb-roster');
             rosterEl.innerHTML = '';
-            hbRoster.forEach(p => {
+            positionMap.forEach(item => {
                 const li = document.createElement('li');
                 li.className = 'hb-roster-item';
-                li.innerHTML = `<span>${p.Player}</span> <span class="p-price">$${p['CBS Salary'].toFixed(2)}</span>`;
+                if (item.player) {
+                    li.innerHTML = `<span><strong>${item.slot}:</strong> ${item.player.Player}</span> <span class="p-price">$${item.player['CBS Salary'].toFixed(2)}</span>`;
+                } else {
+                    li.innerHTML = `<span style="color: var(--text-muted);"><strong>${item.slot}:</strong> [Empty]</span>`;
+                }
                 rosterEl.appendChild(li);
             });
         }
@@ -507,18 +558,18 @@
                 const formattedTarget = formatFunc(target);
                 el.innerText = `${formattedLive} / ${formattedTarget}`;
                 
-                let met = false;
+                let color = 'var(--text-main)';
                 if (isLowerBetter) {
-                    met = (liveVal <= target && liveVal > 0);
+                    if (liveVal > 0 && liveVal <= target) color = '#10b981'; // Green
+                    else if (liveVal > 0 && liveVal <= target * 1.15) color = '#f59e0b'; // Orange
+                    else if (liveVal > 0) color = '#ef4444'; // Red
                 } else {
-                    met = (liveVal >= target);
+                    if (liveVal >= target) color = '#10b981'; // Green
+                    else if (liveVal >= target * 0.75) color = '#f59e0b'; // Orange
+                    else color = '#ef4444'; // Red
                 }
                 
-                if (met) {
-                    el.style.color = 'var(--inflation)';
-                } else {
-                    el.style.color = 'var(--text-main)';
-                }
+                el.style.color = color;
             };
             
             const fmtCount = v => Math.round(v);
@@ -569,6 +620,14 @@
                 if (searchTerm && !fa.Player.toLowerCase().includes(searchTerm)) return;
 
                 const tr = document.createElement('tr');
+                
+                tr.onclick = function() {
+                    const inputField = document.getElementById('draft-player');
+                    if (inputField) {
+                        inputField.value = fa.Player;
+                    }
+                };
+                
                 const pos = fa.POS || 'UNK';
                 const mlb = fa.MLB || 'FA';
                 tr.innerHTML = `
@@ -621,9 +680,8 @@
         }
 
         async function undoPlayer() {
-            const player = document.getElementById('undo-player').value.trim();
+            const player = document.getElementById('undo-player').value;
             if (!player) {
-                alert("Please enter a player name to undo");
                 return;
             }
 

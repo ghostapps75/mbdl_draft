@@ -190,12 +190,21 @@ def api_state():
     for _, row in hb_df.iterrows():
         hb_list.append({
             'Player': str(row.get('Player', '')),
-            'CBS Salary': float(row.get('CBS Salary', 0.0))
+            'CBS Salary': float(row.get('CBS Salary', 0.0)),
+            'POS': str(row.get('POS', 'UNK')),
+            'Type': str(row.get('Type', 'B'))
         })
+    
+    # Live picks for Undo
+    if 'Contract Status' in df.columns:
+        live_picks = df[df['Contract Status'] == 'Standard']['Player'].tolist()
+    else:
+        live_picks = []
     
     return jsonify({
         'free_agents': fa_list,
         'hot_balls_roster': hb_list,
+        'live_picks': live_picks,
         'context': context
     })
 
@@ -210,8 +219,15 @@ def api_draft():
     idx = df[df['Player'] == player].index
     if not idx.empty:
         df.loc[idx, 'Avail'] = team
-        df.loc[idx, 'CBS Salary'] = price
         df.loc[idx, 'Contract Status'] = 'Standard'
+        
+        # Charge the FIRST matching row the exact bid.
+        df.loc[idx[0], 'CBS Salary'] = price
+        
+        # Zero out the salary for any other matches (e.g., Pitcher half of Ohtani)
+        if len(idx) > 1:
+            df.loc[idx[1:], 'CBS Salary'] = 0.0
+            
         save_data(df)
         return jsonify({'success': True})
     return jsonify({'success': False, 'error': 'Player not found'}), 404
