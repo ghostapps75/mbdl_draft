@@ -218,6 +218,7 @@
             letter-spacing: 1px;
             position: sticky;
             top: 0;
+            -webkit-backdrop-filter: blur(4px);
             backdrop-filter: blur(4px);
         }
 
@@ -293,13 +294,71 @@
                 <!-- Populated via JS -->
             </ul>
         </div>
+
+        <div style="margin-top: 2rem;">
+            <h2>Championship Tracker</h2>
+            <div style="margin-bottom: 1rem;">
+                <select id="tracker-team" aria-label="Tracker Team" title="Tracker Team" onchange="renderChampionshipTracker()" style="width: 100%; background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border); padding: 0.5rem; border-radius: 6px;">
+                    <option value="Hot Balls" selected>Hot Balls</option>
+                </select>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                    <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase;">Batting</h3>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">AVG</div>
+                        <div class="stat-value" id="track-avg" style="font-size: 1.1rem;">.000 / .258</div>
+                    </div>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">HR</div>
+                        <div class="stat-value" id="track-hr" style="font-size: 1.1rem;">0 / 309</div>
+                    </div>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">R</div>
+                        <div class="stat-value" id="track-r" style="font-size: 1.1rem;">0 / 1100</div>
+                    </div>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">RBI</div>
+                        <div class="stat-value" id="track-rbi" style="font-size: 1.1rem;">0 / 1044</div>
+                    </div>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">SB</div>
+                        <div class="stat-value" id="track-sb" style="font-size: 1.1rem;">0 / 191</div>
+                    </div>
+                </div>
+                <div>
+                    <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase;">Pitching</h3>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">ERA</div>
+                        <div class="stat-value" id="track-era" style="font-size: 1.1rem;">0.00 / 3.54</div>
+                    </div>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">WHIP</div>
+                        <div class="stat-value" id="track-whip" style="font-size: 1.1rem;">0.00 / 1.17</div>
+                    </div>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">K</div>
+                        <div class="stat-value" id="track-k" style="font-size: 1.1rem;">0 / 1297</div>
+                    </div>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">QS</div>
+                        <div class="stat-value" id="track-qs" style="font-size: 1.1rem;">0 / 90</div>
+                    </div>
+                    <div class="stat-card" style="padding: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="stat-label" style="font-size: 0.7rem;">SHD</div>
+                        <div class="stat-value" id="track-shd" style="font-size: 1.1rem;">0 / 95</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Top Bar Draft Updater -->
     <div class="topbar">
         <div class="input-group" style="flex: 1;">
             <input type="text" id="draft-player" list="player-list" placeholder="Draft Player Name..." style="width: 100%; max-width: 300px;">
-            <select id="draft-team">
+            <select id="draft-team" aria-label="Draft Team" title="Draft Team">
                 <option value="">Select Team...</option>
                 <!-- Populated via JS -->
             </select>
@@ -318,7 +377,7 @@
             <h1>The Board</h1>
             <div class="filters">
                 <input type="text" id="filter-search" placeholder="Search Board..." onkeyup="filterBoard()">
-                <select id="filter-type" onchange="filterBoard()">
+                <select id="filter-type" onchange="filterBoard()" aria-label="Filter by Player Type" title="Filter by Player Type">
                     <option value="All">All Types</option>
                     <option value="B">Batters (B)</option>
                     <option value="P">Pitchers (P)</option>
@@ -331,9 +390,12 @@
                 <thead>
                     <tr>
                         <th>Player</th>
+                        <th>POS</th>
+                        <th>MLB</th>
                         <th>Type</th>
                         <th>Base Value ($)</th>
                         <th>Inflation Value ($)</th>
+                        <th>Projections</th>
                     </tr>
                 </thead>
                 <tbody id="board-body">
@@ -344,7 +406,9 @@
     </div>
 
     <script>
+        const TARGETS = { AVG: 0.258, HR: 309, R: 1100, RBI: 1044, SB: 191, ERA: 3.54, WHIP: 1.17, K: 1297, SHD: 95, QS: 90 };
         let freeAgents = [];
+        let teamStatsData = {};
 
         async function init() {
             await fetchTeams();
@@ -373,7 +437,22 @@
                 const data = await res.json();
                 
                 freeAgents = data.free_agents || [];
+                teamStatsData = data.context?.team_stats || {};
+                
+                const trackerSelect = document.getElementById('tracker-team');
+                if (trackerSelect.options.length <= 1) {
+                    trackerSelect.innerHTML = '';
+                    Object.keys(teamStatsData).sort().forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t;
+                        opt.innerText = t;
+                        if (t === 'Hot Balls') opt.selected = true;
+                        trackerSelect.appendChild(opt);
+                    });
+                }
+
                 updateSidebar(data.context, data.hot_balls_roster);
+                renderChampionshipTracker();
                 updateAutocomplete();
                 renderBoard();
             } catch (err) {
@@ -414,6 +493,66 @@
             return `$${Number(v).toFixed(2)}`;
         }
 
+        function renderChampionshipTracker() {
+            const team = document.getElementById('tracker-team').value;
+            const stats = teamStatsData[team] || {
+                HR: 0, R: 0, RBI: 0, SB: 0, K: 0, QS: 0, SHD: 0, AVG: 0.0, ERA: 0.0, WHIP: 0.0
+            };
+
+            const updateStat = (id, key, liveVal, formatFunc, isLowerBetter = false) => {
+                const el = document.getElementById(`track-${id}`);
+                if (!el) return;
+                const target = TARGETS[key];
+                const formattedLive = formatFunc(liveVal);
+                const formattedTarget = formatFunc(target);
+                el.innerText = `${formattedLive} / ${formattedTarget}`;
+                
+                let met = false;
+                if (isLowerBetter) {
+                    met = (liveVal <= target && liveVal > 0);
+                } else {
+                    met = (liveVal >= target);
+                }
+                
+                if (met) {
+                    el.style.color = 'var(--inflation)';
+                } else {
+                    el.style.color = 'var(--text-main)';
+                }
+            };
+            
+            const fmtCount = v => Math.round(v);
+            const fmtAvg = v => {
+                if (!v) return '.000';
+                let s = v.toFixed(3);
+                if (s.startsWith('0.')) s = s.substring(1);
+                return s;
+            };
+            const fmtRate = v => v.toFixed(2);
+
+            updateStat('avg', 'AVG', stats.AVG, fmtAvg);
+            updateStat('hr', 'HR', stats.HR, fmtCount);
+            updateStat('r', 'R', stats.R, fmtCount);
+            updateStat('rbi', 'RBI', stats.RBI, fmtCount);
+            updateStat('sb', 'SB', stats.SB, fmtCount);
+
+            updateStat('era', 'ERA', stats.ERA, fmtRate, true);
+            updateStat('whip', 'WHIP', stats.WHIP, fmtRate, true);
+            updateStat('k', 'K', stats.K, fmtCount);
+            updateStat('qs', 'QS', stats.QS, fmtCount);
+            updateStat('shd', 'SHD', stats.SHD, fmtCount);
+        }
+
+        function getProjectionString(p) {
+            if (p.Type === 'B') {
+                const avg = p.AVG || 0;
+                const avgStr = avg.toFixed(3).replace(/^0+/, '') || '.000';
+                return `${avgStr} | ${p.HR || 0} | ${p.R || 0} | ${p.RBI || 0} | ${p.SB || 0}`;
+            } else {
+                return `${(p.ERA || 0).toFixed(2)} | ${(p.WHIP || 0).toFixed(2)} | ${p.K || 0} | ${p.QS || 0} | ${p.SHD || 0}`;
+            }
+        }
+
         function renderBoard() {
             const searchTerm = document.getElementById('filter-search').value.toLowerCase();
             const typeFilter = document.getElementById('filter-type').value;
@@ -430,11 +569,16 @@
                 if (searchTerm && !fa.Player.toLowerCase().includes(searchTerm)) return;
 
                 const tr = document.createElement('tr');
+                const pos = fa.POS || 'UNK';
+                const mlb = fa.MLB || 'FA';
                 tr.innerHTML = `
                     <td style="font-weight: 600;">${fa.Player}</td>
+                    <td>${pos}</td>
+                    <td>${mlb}</td>
                     <td>${fa.Type}</td>
                     <td>${formatVal(fa.Dollars)}</td>
                     <td class="val-inflation">${formatVal(fa.Inflation_Value)}</td>
+                    <td style="color: var(--text-muted); font-family: monospace;">${getProjectionString(fa)}</td>
                 `;
                 tbody.appendChild(tr);
             });

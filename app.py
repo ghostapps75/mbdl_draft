@@ -9,24 +9,47 @@ BATTERS_PATH = os.path.join(DATA_DIR, 'Draft_Board_Master_Batters.csv')
 PITCHERS_PATH = os.path.join(DATA_DIR, 'Draft_Board_Master_Pitchers.csv')
 
 def initialize_data():
-    if not os.path.exists(LIVE_STATE_PATH):
-        print("live_draft_state.csv not found. Initializing from master files...")
-        batters_df = pd.read_csv(BATTERS_PATH)
-        batters_df['Type'] = 'B'
-        
-        pitchers_df = pd.read_csv(PITCHERS_PATH)
-        pitchers_df['Type'] = 'P'
-        
-        # Concatenate and save
-        df = pd.concat([batters_df, pitchers_df], ignore_index=True)
-        # Ensure 'CBS Salary' and 'Dollars' cols exist and are numeric
-        df['CBS Salary'] = pd.to_numeric(df['CBS Salary'], errors='coerce').fillna(0.0)
-        df['Dollars'] = pd.to_numeric(df['Dollars'], errors='coerce').fillna(0.0)
-        df.to_csv(LIVE_STATE_PATH, index=False)
-        print("live_draft_state.csv generated successfully.")
-        return df
+    if os.path.exists(LIVE_STATE_PATH):
+        print("Removing existing live_draft_state.csv...")
+        try:
+            os.remove(LIVE_STATE_PATH)
+        except OSError as e:
+            print("Error removing file:", e)
+            
+    print("live_draft_state.csv not found or removed. Initializing from master files...")
+    batters_df = pd.read_csv(BATTERS_PATH)
+    batters_df['Type'] = 'B'
+    
+    pitchers_df = pd.read_csv(PITCHERS_PATH)
+    pitchers_df['Type'] = 'P'
+    
+    # Concatenate and save
+    df = pd.concat([batters_df, pitchers_df], ignore_index=True)
+    # Ensure 'CBS Salary' and 'Dollars' cols exist and are numeric
+    df['CBS Salary'] = pd.to_numeric(df['CBS Salary'], errors='coerce').fillna(0.0)
+    df['Dollars'] = pd.to_numeric(df['Dollars'], errors='coerce').fillna(0.0)
+    
+    proj_cols = ['AVG', 'HR', 'R', 'RBI', 'SB', 'ERA', 'WHIP', 'K', 'QS', 'SHD', 'PA', 'IP']
+    for col in proj_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+        else:
+            df[col] = 0.0
+            
+    if 'POS' in df.columns:
+        df['POS'] = df['POS'].fillna('UNK')
     else:
-        return pd.read_csv(LIVE_STATE_PATH)
+        df['POS'] = 'UNK'
+        
+    if 'MLB' in df.columns:
+        df['MLB'] = df['MLB'].fillna('FA')
+    else:
+        df['MLB'] = 'FA'
+        
+    df.to_csv(LIVE_STATE_PATH, index=False)
+    print("live_draft_state.csv generated successfully.")
+    return df
+
 
 def load_data():
     return pd.read_csv(LIVE_STATE_PATH)
@@ -63,6 +86,56 @@ def get_draft_context():
     slots_left = max(1, 23 - hb_roster_size)
     hb_max_bid = max(0.0, hb_remaining - (slots_left - 1))
     
+    # Calculate team stats
+    team_stats = {}
+    valid_teams = [t for t in df['Avail'].unique() if pd.notna(t) and t not in ['Free Agent', 'Minors']]
+    
+    for team in valid_teams:
+        t_df = df[df['Avail'] == team]
+        
+        # Counting stats (fillna 0 and sum)
+        def ssum(col):
+            if col in t_df.columns:
+                return float(pd.to_numeric(t_df[col], errors='coerce').fillna(0.0).sum())
+            return 0.0
+            
+        hr = ssum('HR')
+        r = ssum('R')
+        rbi = ssum('RBI')
+        sb = ssum('SB')
+        k = ssum('K')
+        qs = ssum('QS')
+        shd = ssum('SHD')
+        
+        # Rate stats
+        # Need to ensure PA and IP exist
+        if 'PA' in t_df.columns and 'AVG' in t_df.columns:
+            pa_series = pd.to_numeric(t_df['PA'], errors='coerce').fillna(0.0)
+            avg_series = pd.to_numeric(t_df['AVG'], errors='coerce').fillna(0.0)
+            sum_pa = pa_series.sum()
+            avg = float((avg_series * pa_series).sum() / sum_pa) if sum_pa > 0 else 0.0
+        else:
+            avg = 0.0
+
+        if 'IP' in t_df.columns:
+            ip_series = pd.to_numeric(t_df['IP'], errors='coerce').fillna(0.0)
+            sum_ip = ip_series.sum()
+            if sum_ip > 0:
+                era_series = pd.to_numeric(t_df['ERA'], errors='coerce').fillna(0.0) if 'ERA' in t_df.columns else pd.Series(0.0, index=ip_series.index)
+                era = float((era_series * ip_series).sum() / sum_ip)
+                whip_series = pd.to_numeric(t_df['WHIP'], errors='coerce').fillna(0.0) if 'WHIP' in t_df.columns else pd.Series(0.0, index=ip_series.index)
+                whip = float((whip_series * ip_series).sum() / sum_ip)
+            else:
+                era, whip = 0.0, 0.0
+        else:
+            era, whip = 0.0, 0.0
+            
+        team_stats[team] = {
+            'HR': hr, 'R': r, 'RBI': rbi, 'SB': sb,
+            'K': k, 'QS': qs, 'SHD': shd,
+            'AVG': avg, 'ERA': era, 'WHIP': whip
+        }
+        
     return {
         'total_kept_salaries': float(total_kept_salaries),
         'total_kept_value': float(total_kept_value),
@@ -72,7 +145,8 @@ def get_draft_context():
             'remaining': float(hb_remaining),
             'roster_size': int(hb_roster_size),
             'max_bid': float(hb_max_bid)
-        }
+        },
+        'team_stats': team_stats
     }
 
 @app.route('/')
@@ -87,18 +161,37 @@ def api_state():
     
     # Free agents
     fa_df = df[df['Avail'] == 'Free Agent'].copy()
-    fa_df['Inflation_Value'] = fa_df['Dollars'] * mult
     
-    # Replace NaN with None stringification to avoid JSON NaN error if there is any
-    fa_df = fa_df.where(pd.notnull(fa_df), None)
-    
-    # Only return required columns to frontend to save bandwidth
-    fa_cols = ['Player', 'Type', 'Dollars', 'Inflation_Value']
-    fa_list = fa_df[fa_cols].to_dict(orient='records')
+    fa_list = []
+    for _, row in fa_df.iterrows():
+        calc_val = float(row.get('Dollars', 0.0)) * float(mult)
+        fa_list.append({
+            'Player': str(row.get('Player', '')),
+            'Type': str(row.get('Type', '')),
+            'POS': str(row.get('POS', 'UNK')),
+            'MLB': str(row.get('MLB', 'FA')),
+            'AVG': float(row.get('AVG', 0.0)),
+            'HR': int(float(row.get('HR', 0.0))),
+            'R': int(float(row.get('R', 0.0))),
+            'RBI': int(float(row.get('RBI', 0.0))),
+            'SB': int(float(row.get('SB', 0.0))),
+            'ERA': float(row.get('ERA', 0.0)),
+            'WHIP': float(row.get('WHIP', 0.0)),
+            'K': int(float(row.get('K', 0.0))),
+            'QS': int(float(row.get('QS', 0.0))),
+            'SHD': int(float(row.get('SHD', 0.0))),
+            'Dollars': float(row.get('Dollars', 0.0)),
+            'Inflation_Value': calc_val
+        })
     
     # Hot Balls roster
     hb_df = df[df['Avail'] == 'Hot Balls']
-    hb_list = hb_df[['Player', 'CBS Salary']].to_dict(orient='records')
+    hb_list = []
+    for _, row in hb_df.iterrows():
+        hb_list.append({
+            'Player': str(row.get('Player', '')),
+            'CBS Salary': float(row.get('CBS Salary', 0.0))
+        })
     
     return jsonify({
         'free_agents': fa_list,
