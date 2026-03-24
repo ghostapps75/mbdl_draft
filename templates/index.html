@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Draft Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --sidebar-bg: #1e293b;
+            --topbar-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --hot-balls: #ef4444;
+            --inflation: #10b981;
+            --border: #334155;
+            --row-hover: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            grid-template-rows: 80px 1fr;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Top Bar */
+        .topbar {
+            grid-column: 2 / 3;
+            grid-row: 1 / 2;
+            background-color: var(--topbar-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 2rem;
+            gap: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        input, select, button {
+            background: var(--bg-color);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            outline: none;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn-draft {
+            background: var(--accent);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+        }
+        .btn-draft:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-undo {
+            background: var(--bg-color);
+            color: var(--hot-balls);
+            border: 1px solid var(--hot-balls);
+            cursor: pointer;
+        }
+        .btn-undo:hover {
+            background: var(--hot-balls);
+            color: white;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            grid-column: 1 / 2;
+            grid-row: 1 / 3;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            font-size: 1.25rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            background: var(--bg-color);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card.hot {
+            border-color: var(--hot-balls);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .hb-roster-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .hb-roster-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem;
+            background: var(--bg-color);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .p-price {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        /* Main Board */
+        .main-stage {
+            grid-column: 2 / 3;
+            grid-row: 2 / 3;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .board-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .board-header h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+        }
+
+        .filters {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .table-container {
+            background: var(--sidebar-bg);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: rgba(0, 0, 0, 0.2);
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            position: sticky;
+            top: 0;
+            backdrop-filter: blur(4px);
+        }
+
+        tbody tr {
+            transition: background 0.15s;
+        }
+
+        tbody tr:hover {
+            background: var(--row-hover);
+        }
+
+        .val-inflation {
+            color: var(--inflation);
+            font-weight: 800;
+            font-size: 1.1em;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            body {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto 1fr;
+                height: auto;
+                overflow: auto;
+            }
+            .sidebar {
+                grid-column: 1 / 2;
+                grid-row: 2 / 3;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+            }
+            .topbar {
+                grid-column: 1 / 2;
+                grid-row: 1 / 2;
+                flex-wrap: wrap;
+            }
+            .main-stage {
+                grid-column: 1 / 2;
+                grid-row: 3 / 4;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <datalist id="player-list"></datalist>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div>
+            <h2>Hot Balls HQ</h2>
+            <div class="stat-card hot" style="margin-bottom: 1rem;">
+                <div class="stat-label">Remaining Budget</div>
+                <div class="stat-value" id="hb-remaining">$0.00</div>
+            </div>
+            <div class="stat-card" style="margin-bottom: 1rem;">
+                <div class="stat-label">Max Bid</div>
+                <div class="stat-value" id="hb-max-bid">$0.00</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Roster Spots Left</div>
+                <div class="stat-value" id="hb-spots-left">23</div>
+            </div>
+            <div class="stat-card" style="margin-top: 1rem;">
+                <div class="stat-label">League Inflation</div>
+                <div class="stat-value" id="league-inflation" style="color: var(--inflation);">1.00x</div>
+            </div>
+        </div>
+
+        <div>
+            <h2>Current Roster</h2>
+            <ul class="hb-roster-list" id="hb-roster">
+                <!-- Populated via JS -->
+            </ul>
+        </div>
+    </div>
+
+    <!-- Top Bar Draft Updater -->
+    <div class="topbar">
+        <div class="input-group" style="flex: 1;">
+            <input type="text" id="draft-player" list="player-list" placeholder="Draft Player Name..." style="width: 100%; max-width: 300px;">
+            <select id="draft-team">
+                <option value="">Select Team...</option>
+                <!-- Populated via JS -->
+            </select>
+            <input type="number" id="draft-price" placeholder="Price ($)" min="1" step="1" style="width: 100px;">
+            <button class="btn-draft" onclick="draftPlayer()">DRAFT</button>
+        </div>
+        <div class="input-group">
+            <input type="text" id="undo-player" list="player-list" placeholder="Undo Player Name..." style="width: 200px;">
+            <button class="btn-undo" onclick="undoPlayer()">UNDO</button>
+        </div>
+    </div>
+
+    <!-- Main Stage The Board -->
+    <div class="main-stage">
+        <div class="board-header">
+            <h1>The Board</h1>
+            <div class="filters">
+                <input type="text" id="filter-search" placeholder="Search Board..." onkeyup="filterBoard()">
+                <select id="filter-type" onchange="filterBoard()">
+                    <option value="All">All Types</option>
+                    <option value="B">Batters (B)</option>
+                    <option value="P">Pitchers (P)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Type</th>
+                        <th>Base Value ($)</th>
+                        <th>Inflation Value ($)</th>
+                    </tr>
+                </thead>
+                <tbody id="board-body">
+                    <!-- Populated via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let freeAgents = [];
+
+        async function init() {
+            await fetchTeams();
+            await fetchState();
+        }
+
+        async function fetchTeams() {
+            try {
+                const res = await fetch('/api/teams');
+                const data = await res.json();
+                const select = document.getElementById('draft-team');
+                data.teams.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t;
+                    opt.innerText = t;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                console.error("Error fetching teams", err);
+            }
+        }
+
+        async function fetchState() {
+            try {
+                const res = await fetch('/api/state');
+                const data = await res.json();
+                
+                freeAgents = data.free_agents || [];
+                updateSidebar(data.context, data.hot_balls_roster);
+                updateAutocomplete();
+                renderBoard();
+            } catch (err) {
+                console.error("Error fetching state", err);
+            }
+        }
+
+        function updateSidebar(context, hbRoster) {
+            const hb = context.hot_balls;
+            
+            document.getElementById('hb-remaining').innerText = `$${hb.remaining.toFixed(2)}`;
+            document.getElementById('hb-max-bid').innerText = `$${hb.max_bid.toFixed(2)}`;
+            document.getElementById('hb-spots-left').innerText = Math.max(0, 23 - hb.roster_size);
+            document.getElementById('league-inflation').innerText = `${context.inflation_multiplier.toFixed(2)}x`;
+
+            const rosterEl = document.getElementById('hb-roster');
+            rosterEl.innerHTML = '';
+            hbRoster.forEach(p => {
+                const li = document.createElement('li');
+                li.className = 'hb-roster-item';
+                li.innerHTML = `<span>${p.Player}</span> <span class="p-price">$${p['CBS Salary'].toFixed(2)}</span>`;
+                rosterEl.appendChild(li);
+            });
+        }
+
+        function updateAutocomplete() {
+            const datalist = document.getElementById('player-list');
+            datalist.innerHTML = '';
+            freeAgents.forEach(fa => {
+                const opt = document.createElement('option');
+                opt.value = fa.Player;
+                datalist.appendChild(opt);
+            });
+        }
+
+        function formatVal(v) {
+            if (v === null || v === undefined || isNaN(v)) return '$0.00';
+            return `$${Number(v).toFixed(2)}`;
+        }
+
+        function renderBoard() {
+            const searchTerm = document.getElementById('filter-search').value.toLowerCase();
+            const typeFilter = document.getElementById('filter-type').value;
+            
+            const tbody = document.getElementById('board-body');
+            tbody.innerHTML = '';
+            
+            // Sort FA by Inflation Value Descending
+            const sortedFA = [...freeAgents].sort((a, b) => b.Inflation_Value - a.Inflation_Value);
+
+            sortedFA.forEach(fa => {
+                // Apply filters
+                if (typeFilter !== 'All' && fa.Type !== typeFilter) return;
+                if (searchTerm && !fa.Player.toLowerCase().includes(searchTerm)) return;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight: 600;">${fa.Player}</td>
+                    <td>${fa.Type}</td>
+                    <td>${formatVal(fa.Dollars)}</td>
+                    <td class="val-inflation">${formatVal(fa.Inflation_Value)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterBoard() {
+            renderBoard();
+        }
+
+        async function draftPlayer() {
+            const player = document.getElementById('draft-player').value.trim();
+            const team = document.getElementById('draft-team').value;
+            const price = document.getElementById('draft-price').value;
+
+            if (!player || !team || !price) {
+                alert("Please fill all draft fields");
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/draft', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player, team, price })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    // Clear inputs
+                    document.getElementById('draft-player').value = '';
+                    document.getElementById('draft-price').value = '';
+                    // Refetch
+                    fetchState();
+                } else {
+                    alert('Draft failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error communicating with server");
+            }
+        }
+
+        async function undoPlayer() {
+            const player = document.getElementById('undo-player').value.trim();
+            if (!player) {
+                alert("Please enter a player name to undo");
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/undo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    document.getElementById('undo-player').value = '';
+                    fetchState();
+                } else {
+                    alert('Undo failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error communicating with server");
+            }
+        }
+
+        // Initialize
+        window.onload = init;
+    </script>
+</body>
+</html>
